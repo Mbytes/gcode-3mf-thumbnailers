@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+model/3mf is the mime type recent versions of shared-mime-info register
+for 3D Manufacturing Format files. It is included here directly since
+older shared-mime-info databases (and this system's) do not ship it yet.
+-->
+
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="model/3mf">
+    <comment>3D Manufacturing Format model</comment>
+    <acronym>3MF</acronym>
+    <expanded-acronym>3D Manufacturing Format</expanded-acronym>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.3mf"/>
+    <alias type="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
+  </mime-type>
+</mime-info>

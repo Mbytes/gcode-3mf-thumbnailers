@@ -1,0 +1,4 @@
+[Thumbnailer Entry]
+TryExec=3mf-thumb
+Exec=3mf-thumb -s %s %i %o
+MimeType=model/3mf;application/vnd.ms-package.3dmanufacturing-3dmodel+xml;

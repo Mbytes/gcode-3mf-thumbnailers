@@ -1,0 +1,14 @@
+Package: gcode-thumb
+Version: 1.0.0
+Architecture: all
+Section: graphics
+Priority: optional
+Maintainer: masbytes <masbytes@gmail.com>
+Installed-Size: 20
+Depends: python3 (>= 3.6)
+Recommends: python3-pil
+Description: Thumbnail generator for the preview image embedded in G-code files
+ gcode-thumb extracts the preview thumbnail that slicers such as
+ PrusaSlicer, SuperSlicer, OrcaSlicer and Cura embed inside .gcode files
+ and registers it as a GNOME/Nautilus thumbnailer, so file managers show
+ the real print preview instead of a generic text icon.

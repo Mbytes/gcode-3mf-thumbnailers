@@ -1,0 +1,131 @@
+#!/usr/bin/python3
+"""Extract the embedded preview thumbnail from a .gcode file.
+
+Slicers such as PrusaSlicer, SuperSlicer, OrcaSlicer and Cura (with the
+thumbnail plugin) embed one or more preview images as base64 text inside
+G-code comments, e.g.:
+
+    ; thumbnail begin 220x124 12345
+    ; iVBORw0KGgoAAAANSUhEUgAA...
+    ; thumbnail end
+
+This script scans the header of a .gcode file for such blocks, picks the
+best matching resolution for the requested thumbnail size and writes it
+out as a PNG file, so it can be used as a GNOME/Nautilus thumbnailer.
+"""
+import argparse
+import base64
+import re
+import sys
+
+# Thumbnail blocks always live in the file header (metadata comments
+# written before the actual G-code). Reading a bounded prefix keeps this
+# fast even on multi-hundred-MB files instead of scanning the whole file.
+MAX_HEADER_BYTES = 8 * 1024 * 1024
+
+BEGIN_RE = re.compile(
+    r";\s*thumbnail(?:_QOI|_JPG)?\s+begin\s+(\d+)x(\d+)\s+\d+", re.IGNORECASE
+)
+END_RE = re.compile(r";\s*thumbnail(?:_QOI|_JPG)?\s+end", re.IGNORECASE)
+
+
+def find_thumbnails(gcode_path):
+    thumbs = []
+    with open(gcode_path, "rb") as f:
+        header = f.read(MAX_HEADER_BYTES)
+
+    text = header.decode("utf-8", errors="ignore")
+    in_block = False
+    width = height = 0
+    fmt = "png"
+    data_lines = []
+
+    for line in text.splitlines():
+        if not in_block:
+            m = BEGIN_RE.search(line)
+            if m:
+                in_block = True
+                width, height = int(m.group(1)), int(m.group(2))
+                upper = line.upper()
+                fmt = "jpg" if "JPG" in upper else ("qoi" if "QOI" in upper else "png")
+                data_lines = []
+        else:
+            if END_RE.search(line):
+                in_block = False
+                b64 = "".join(data_lines)
+                try:
+                    raw = base64.b64decode(b64, validate=False)
+                except Exception:
+                    raw = None
+                if raw:
+                    thumbs.append((width, height, fmt, raw))
+            else:
+                stripped = line.strip()
+                if stripped.startswith(";"):
+                    stripped = stripped[1:].strip()
+                data_lines.append(stripped)
+
+    return thumbs
+
+
+def pick_best(thumbs, size):
+    # Prefer the smallest thumbnail that still covers the requested size,
+    # otherwise fall back to the largest one available.
+    big_enough = [t for t in thumbs if max(t[0], t[1]) >= size]
+    if big_enough:
+        return min(big_enough, key=lambda t: max(t[0], t[1]))
+    return max(thumbs, key=lambda t: max(t[0], t[1]))
+
+
+def to_png_bytes(width, height, fmt, raw):
+    if fmt == "png":
+        return raw
+    # JPG/QOI thumbnails need Pillow to be re-encoded as PNG.
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+
+        if fmt == "jpg":
+            img = Image.open(BytesIO(raw))
+        else:
+            raise ValueError("unsupported format: %s" % fmt)
+        out = BytesIO()
+        img.save(out, format="PNG")
+        return out.getvalue()
+    except Exception:
+        return None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("input", help="input .gcode file (%i)")
+    parser.add_argument("output", help="output .png file (%o)")
+    parser.add_argument(
+        "-s", "--size", type=int, default=256, help="requested thumbnail size (%s)"
+    )
+    args = parser.parse_args()
+
+    thumbs = find_thumbnails(args.input)
+    if not thumbs:
+        sys.stderr.write("gcode-thumb: no embedded thumbnail found in %s\n" % args.input)
+        return 1
+
+    thumbs.sort(key=lambda t: max(t[0], t[1]), reverse=True)
+    tried = set()
+    while thumbs:
+        best = pick_best(thumbs, args.size)
+        thumbs.remove(best)
+        width, height, fmt, raw = best
+        png_bytes = to_png_bytes(width, height, fmt, raw)
+        if png_bytes:
+            with open(args.output, "wb") as f:
+                f.write(png_bytes)
+            return 0
+
+    sys.stderr.write("gcode-thumb: could not decode any thumbnail in %s\n" % args.input)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,138 @@
+#!/usr/bin/python3
+"""Extract the embedded preview thumbnail from a .3mf file.
+
+A .3mf file is a ZIP (OPC) package. Slicers such as PrusaSlicer,
+BambuStudio, OrcaSlicer and Windows 3D tools embed a preview image and
+register it in the package's root relationships file:
+
+    _rels/.rels ->
+      <Relationship Type=".../metadata/thumbnail" Target="/Metadata/thumbnail.png" .../>
+
+This script reads that relationship (falling back to a few well-known
+paths used by common slicers) and writes the referenced image out as a
+PNG, so it can be used as a GNOME/Nautilus thumbnailer.
+"""
+import argparse
+import sys
+import zipfile
+import xml.etree.ElementTree as ET
+
+THUMBNAIL_REL_TYPE = "http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"
+
+FALLBACK_CANDIDATES = [
+    "Metadata/thumbnail.png",
+    "Metadata/thumbnail.jpg",
+    "Metadata/thumbnail.jpeg",
+    "Metadata/plate_1.png",
+    "Metadata/plate_1.jpg",
+    "Metadata/pick_1.png",
+    "3D/Thumbnails/thumbnail.png",
+]
+
+
+def build_name_map(zf):
+    return {n.lower(): n for n in zf.namelist()}
+
+
+def find_rels_thumbnail(zf):
+    try:
+        data = zf.read("_rels/.rels")
+    except KeyError:
+        return None
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError:
+        return None
+    for rel in root:
+        rel_type = rel.get("Type", "").rstrip("/")
+        if rel_type.lower() == THUMBNAIL_REL_TYPE.lower() and rel.get("TargetMode") != "External":
+            target = rel.get("Target", "").lstrip("/")
+            if target:
+                return target
+    return None
+
+
+def find_any_thumbnail_like(zf):
+    names = zf.namelist()
+    for keyword in ("thumbnail", "plate", "pick"):
+        for name in names:
+            lower = name.lower()
+            if keyword in lower and lower.endswith((".png", ".jpg", ".jpeg")) and "texture" not in lower:
+                return name
+    for name in names:
+        lower = name.lower()
+        if lower.startswith("metadata/") and lower.endswith((".png", ".jpg", ".jpeg")):
+            return name
+    return None
+
+
+def to_png_bytes(data):
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return data
+    if data[:2] == b"\xff\xd8":
+        try:
+            from io import BytesIO
+
+            from PIL import Image
+
+            img = Image.open(BytesIO(data))
+            out = BytesIO()
+            img.save(out, format="PNG")
+            return out.getvalue()
+        except Exception:
+            return None
+    return None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("input", help="input .3mf file (%i)")
+    parser.add_argument("output", help="output .png file (%o)")
+    parser.add_argument(
+        "-s", "--size", type=int, default=256, help="requested thumbnail size (%s), unused but accepted"
+    )
+    args = parser.parse_args()
+
+    try:
+        zf = zipfile.ZipFile(args.input)
+    except (zipfile.BadZipFile, OSError):
+        sys.stderr.write("3mf-thumb: not a valid .3mf/zip file: %s\n" % args.input)
+        return 1
+
+    with zf:
+        name_map = build_name_map(zf)
+
+        candidates = []
+        rels_target = find_rels_thumbnail(zf)
+        if rels_target:
+            candidates.append(rels_target)
+        candidates.extend(FALLBACK_CANDIDATES)
+        guessed = find_any_thumbnail_like(zf)
+        if guessed:
+            candidates.append(guessed)
+
+        seen = set()
+        for candidate in candidates:
+            key = candidate.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            actual_name = name_map.get(key)
+            if not actual_name:
+                continue
+            try:
+                data = zf.read(actual_name)
+            except KeyError:
+                continue
+            png_bytes = to_png_bytes(data)
+            if png_bytes:
+                with open(args.output, "wb") as f:
+                    f.write(png_bytes)
+                return 0
+
+    sys.stderr.write("3mf-thumb: no embedded thumbnail found in %s\n" % args.input)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

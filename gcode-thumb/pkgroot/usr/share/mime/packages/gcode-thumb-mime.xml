@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+Included for systems whose shared-mime-info database does not yet ship
+the text/x.gcode type, and to also register the application/x-gcode
+name used by some tools.
+-->
+
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="text/x.gcode">
+    <comment>G-code file</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.gcode"/>
+  </mime-type>
+  <mime-type type="application/x-gcode">
+    <comment>G-code file</comment>
+    <sub-class-of type="text/x.gcode"/>
+    <glob pattern="*.gcode"/>
+  </mime-type>
+</mime-info>
