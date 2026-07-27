@@ -15,6 +15,8 @@ Both are small, dependency-free Python 3 scripts registered as
 they just pull out the image the slicer already generated and saved
 inside the file.
 
+## Based on  STL-THUMB https://github.com/unlimitedbacon/stl-thumb
+
 ## Build
 
 Each package builds independently:
