@@ -1,3 +1,4 @@
 *.deb
+!releases/*.deb
 __pycache__/
 *.pyc

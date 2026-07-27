@@ -18,6 +18,11 @@ inside the file.
 ## Based on  STL-THUMB 
 https://github.com/unlimitedbacon/stl-thumb
 
+Prebuilt `.deb` files are in [`releases/`](releases/) if you just want to
+install them — see that folder for direct download links, checksums and
+install/uninstall commands. The rest of this README covers building from
+source.
+
 ## Build
 
 Each package builds independently:
@@ -43,6 +48,9 @@ sudo dpkg -i gcode-thumb/gcode-thumb_1.0.0_all.deb
 sudo dpkg -i 3mf-thumb/3mf-thumb_1.0.0_all.deb
 sudo apt-get install -f   # pulls in python3 if missing
 ```
+
+(or use the prebuilt files in [`releases/`](releases/) instead of
+building)
 
 Then refresh the file manager's thumbnail cache:
 
